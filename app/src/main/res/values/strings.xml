@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Media Optimizer</string>
+    <string name="select_photos">Select photos</string>
+    <string name="clear">Clear</string>
+    <string name="selected_count">%1$d photo(s) selected</string>
+    <string name="output_format">Output format</string>
+    <string name="quality">Quality</string>
+    <string name="preserve_exif">Keep shooting time &amp; location (EXIF)</string>
+    <string name="output_directory">Output folder: Pictures/%1$s (visible in Gallery)</string>
+    <string name="originals_kept_hint">Originals are never deleted. Verify results in Gallery, then delete originals manually.</string>
+    <string name="start_compress">Convert</string>
+    <string name="converting">Converting…</string>
+    <string name="result_message">Done: %1$d converted, %2$d failed, saved %3$s. Output: Pictures/%4$s.</string>
+</resources>

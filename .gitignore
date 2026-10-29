@@ -1,0 +1,32 @@
+# Built application files
+*.apk
+*.aab
+
+# Gradle files
+.gradle/
+build/
+
+# Local configuration file (sensitive path information)
+local.properties
+
+# Keystore files
+*.jks
+*.keystore
+*.keys
+
+# Signing files
+secrets.properties
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Kotlin
+.kotlintest
