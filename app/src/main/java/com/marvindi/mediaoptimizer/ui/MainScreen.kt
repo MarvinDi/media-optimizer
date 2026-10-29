@@ -144,7 +144,7 @@ fun MainScreen(viewModel: CompressViewModel) {
                             DropdownMenuItem(
                                 text = { Text(option.displayName) },
                                 onClick = {
-                                    viewModel.setFormat(option)
+                                    viewModel.format = option
                                     formatMenuOpen = false
                                 }
                             )
@@ -160,7 +160,7 @@ fun MainScreen(viewModel: CompressViewModel) {
                 )
                 Slider(
                     value = viewModel.quality,
-                    onValueChange = { viewModel.setQuality(it) },
+                    onValueChange = { viewModel.quality = it },
                     valueRange = 60f..100f,
                     enabled = !viewModel.isProcessing
                 )
@@ -169,7 +169,7 @@ fun MainScreen(viewModel: CompressViewModel) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(
                     checked = viewModel.preserveExif,
-                    onCheckedChange = { viewModel.setPreserveExif(it) },
+                    onCheckedChange = { viewModel.preserveExif = it },
                     enabled = !viewModel.isProcessing
                 )
                 Spacer(modifier = Modifier.width(8.dp))

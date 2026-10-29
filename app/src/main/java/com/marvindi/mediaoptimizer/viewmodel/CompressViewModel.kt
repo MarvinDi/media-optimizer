@@ -47,18 +47,6 @@ class CompressViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun setFormat(value: OutputFormat) {
-        format = value
-    }
-
-    fun setQuality(value: Float) {
-        quality = value
-    }
-
-    fun setPreserveExif(value: Boolean) {
-        preserveExif = value
-    }
-
     fun start() {
         if (isProcessing || uris.isEmpty()) return
 
