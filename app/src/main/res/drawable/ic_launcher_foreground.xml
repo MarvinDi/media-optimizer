@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 前景安全区域：66dp x 66dp，居中于 108dp 画布（边距 21dp） -->
+    <group
+        android:translateX="21"
+        android:translateY="21">
+        <!-- 照片卡片：圆角矩形 -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M6,6 h54 v54 h-54 z"/>
+        <!-- 相机镜头：圆形 -->
+        <path
+            android:fillColor="#6200EE"
+            android:pathData="M38,34 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0"/>
+        <!-- 闪光灯小圆点 -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M50,26 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"/>
+    </group>
+</vector>
