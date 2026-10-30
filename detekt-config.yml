@@ -1,0 +1,34 @@
+# Media Optimizer detekt configuration
+# Based on default detekt ruleset, tuned for Android/Compose project
+
+rules {
+    complexity {
+        CyclomaticComplexity {
+            threshold = 20
+        }
+        MethodCount {
+            threshold = 30
+        }
+        ParameterCount {
+            threshold = 6
+        }
+    }
+    style {
+        MagicNumber {
+            ignoreNumbers = [-1, 0, 1, 2, 3, 100, 1000]
+        }
+        MaxLineLength {
+            maxLineLength = 120
+        }
+    }
+    comments {
+        KDocReference {
+            searchInJavaDoc = true
+        }
+    }
+    empty-code { }
+    exceptions { }
+    naming { }
+    performance { }
+    potential-bugs { }
+}
