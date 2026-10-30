@@ -350,10 +350,10 @@ object ExifHelper {
         for ((tagId, bytes) in exifIfdEntries) assignValue(tagId, bytes)
         for ((tagId, bytes) in gpsIfdEntries) assignValue(tagId, bytes)
 
-        val totalSize = 6 + tiffHeaderSize + ifdBlockSize(ifd0Entries)
-            + (if (hasExifIfd) ifdBlockSize(exifIfdEntries) else 0)
-            + (if (hasGpsIfd) ifdBlockSize(gpsIfdEntries) else 0)
-            + (dataPos - dataStart)
+        val totalSize = 6 + tiffHeaderSize + ifdBlockSize(ifd0Entries) +
+            (if (hasExifIfd) ifdBlockSize(exifIfdEntries) else 0) +
+            (if (hasGpsIfd) ifdBlockSize(gpsIfdEntries) else 0) +
+            (dataPos - dataStart)
         val out = ByteArray(totalSize)
 
         // ---- Write "Exif\0\0" prefix ----
