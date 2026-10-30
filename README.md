@@ -1,5 +1,7 @@
 # Media Optimizer
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 Android app that batch-converts and compresses photos to modern formats (HEIF/HEIC, WebP, JPEG), keeps EXIF metadata (shooting time, GPS location, camera info), and gathers the results into one single gallery folder.
 
 - **Open source** (Apache-2.0), free, no ads, no in-app purchases

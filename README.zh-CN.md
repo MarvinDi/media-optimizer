@@ -1,5 +1,7 @@
 # Media Optimizer
 
+[中文](README.zh-CN.md) | [English](README.md)
+
 Android 应用，批量将照片转码并压缩为现代格式（HEIF/HEIC、WebP、JPEG），保留 EXIF 元数据（拍摄时间、GPS 位置、相机信息），并将结果汇总到同一个相册文件夹。
 
 - **开源**（Apache-2.0），免费，无广告，无内购
