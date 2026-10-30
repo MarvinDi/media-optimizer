@@ -68,7 +68,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Run ktlint
-        run: ./gradlew ktlint --no-daemon
+        run: ./gradlew ktlintCheck --no-daemon
 
   lint:
     runs-on: ubuntu-latest
