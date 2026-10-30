@@ -13,6 +13,7 @@ local.properties
 *.jks
 *.keystore
 *.keys
+key.properties
 
 # Signing files
 secrets.properties
@@ -23,10 +24,14 @@ secrets.properties
 *.ipr
 *.iws
 .vscode/
+.cxx/
+.externalNativeBuild/
 
 # OS generated files
 .DS_Store
 Thumbs.db
+*.hprof
+captures/
 
 # Kotlin
 .kotlintest
