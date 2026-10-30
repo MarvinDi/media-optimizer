@@ -56,6 +56,7 @@ object ExifHelper {
                 parseDateTime(raw)
             }
         } catch (e: Exception) {
+            android.util.Log.w(TAG, "Failed to read taken time from $uri", e)
             null
         }
     }

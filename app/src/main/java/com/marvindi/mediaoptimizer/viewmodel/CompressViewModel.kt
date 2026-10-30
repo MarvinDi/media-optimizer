@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 class CompressViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ImageRepository(application)
+    private val TAG = "CompressViewModel"
 
     var uris by mutableStateOf<List<Uri>>(emptyList())
     var format by mutableStateOf(OutputFormat.HEIF)
@@ -68,6 +69,7 @@ class CompressViewModel(application: Application) : AndroidViewModel(application
                     saved += result.savedBytes
                     success++
                 } catch (e: Exception) {
+                    android.util.Log.w(TAG, "Failed to compress $uri", e)
                     failed++
                 }
                 progress = (success + failed).toFloat() / list.size
