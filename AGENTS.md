@@ -36,7 +36,7 @@ minSdk：29（以 `app/build.gradle.kts` 为准），targetSdk：35
 |------|------|
 | `./gradlew assembleDebug` | 构建 Debug APK |
 | `./gradlew detekt` | 运行 detekt 静态检查 |
-| `./gradlew ktlint` | 运行 ktlint 代码风格检查 |
+| `./gradlew ktlintCheck` | 运行 ktlint 代码风格检查 |
 | `./gradlew testDebugUnitTest` | 运行单元测试 |
 | `./gradlew lintDebug` | 运行 Android Lint |
 
