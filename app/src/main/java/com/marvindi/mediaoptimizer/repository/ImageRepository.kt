@@ -50,11 +50,11 @@ class ImageRepository(private val context: Context) {
 
         // For HEIF output the raw EXIF block is embedded during encoding.
         // The orientation tag is reset to normal because ImageDecoder already
-        // rotated the pixels.
+        // rotated the pixels. extractExifBlock handles both JPEG (APP1 segment)
+        // and HEIC (ExifInterface tag reading + block building) sources.
         val exifBlock =
             if (preserveExif && format == OutputFormat.HEIF) {
-                ExifHelper.extractJpegExifBlock(context, sourceUri)
-                    ?.let { ExifHelper.withNormalOrientation(it) }
+                ExifHelper.extractExifBlock(context, sourceUri)
             } else {
                 null
             }

@@ -2,10 +2,12 @@ package com.marvindi.mediaoptimizer.util
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import java.io.BufferedInputStream
 import java.io.DataInputStream
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -222,6 +224,322 @@ object ExifHelper {
             android.util.Log.w(TAG, "Failed to clear orientation in EXIF block", e)
         }
         return out
+    }
+
+    /**
+     * Reads EXIF tags from a HEIC/HEIF source file using [ExifInterface].
+     *
+     * AndroidX ExifInterface 1.3.7 supports reading HEIC files via
+     * `ExifInterface(InputStream)`. This method reads the shooting time,
+     * GPS location, and camera make/model tags that are commonly present
+     * in HEIC photos from e.g. Xiaomi 14 native camera.
+     *
+     * Failures are logged and an empty map is returned - this method never throws.
+     */
+    fun readExifFromHeic(context: Context, uri: Uri): Map<String, String> {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val exif = ExifInterface(input)
+                val tags = LinkedHashMap<String, String>()
+                val heicTags = listOf(
+                    ExifInterface.TAG_DATETIME_ORIGINAL,
+                    ExifInterface.TAG_DATETIME,
+                    ExifInterface.TAG_MAKE,
+                    ExifInterface.TAG_MODEL,
+                    ExifInterface.TAG_GPS_LATITUDE,
+                    ExifInterface.TAG_GPS_LATITUDE_REF,
+                    ExifInterface.TAG_GPS_LONGITUDE,
+                    ExifInterface.TAG_GPS_LONGITUDE_REF,
+                    ExifInterface.TAG_GPS_ALTITUDE,
+                    ExifInterface.TAG_GPS_ALTITUDE_REF,
+                    ExifInterface.TAG_GPS_TIMESTAMP,
+                    ExifInterface.TAG_GPS_DATESTAMP
+                )
+                for (tag in heicTags) {
+                    exif.getAttribute(tag)?.let { tags[tag] = it }
+                }
+                tags
+            } ?: emptyMap()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read EXIF from HEIC $uri", e)
+            emptyMap()
+        }
+    }
+
+    /**
+     * Builds a minimal EXIF block (starting with "Exif\0\0") from tag→value pairs,
+     * suitable for [androidx.heifwriter.HeifWriter.addExifData].
+     *
+     * Constructs a little-endian TIFF structure with IFD0, optional Exif IFD
+     * and optional GPS IFD. ASCII values longer than 4 bytes are placed in a
+     * data area at the end of the block; shorter values are stored inline.
+     *
+     * Returns null if [tags] is empty or if the block cannot be built.
+     */
+    fun exifTagsToBlock(tags: Map<String, String>): ByteArray? {
+        if (tags.isEmpty()) return null
+
+        // Maps ExifInterface constant names to TIFF tag IDs.
+        val tagIdMap = mapOf(
+            ExifInterface.TAG_MAKE to 0x010F,
+            ExifInterface.TAG_MODEL to 0x0110,
+            ExifInterface.TAG_DATETIME to 0x0132,
+            ExifInterface.TAG_DATETIME_ORIGINAL to 0x9003,
+            ExifInterface.TAG_GPS_LATITUDE_REF to 0x0001,
+            ExifInterface.TAG_GPS_LATITUDE to 0x0002,
+            ExifInterface.TAG_GPS_LONGITUDE_REF to 0x0003,
+            ExifInterface.TAG_GPS_LONGITUDE to 0x0004,
+            ExifInterface.TAG_GPS_ALTITUDE to 0x0005,
+            ExifInterface.TAG_GPS_ALTITUDE_REF to 0x0006,
+            ExifInterface.TAG_GPS_TIMESTAMP to 0x0007,
+            ExifInterface.TAG_GPS_DATESTAMP to 0x001D
+        )
+
+        val ifd0Entries = LinkedHashMap<Int, ByteArray>()
+        val exifIfdEntries = LinkedHashMap<Int, ByteArray>()
+        val gpsIfdEntries = LinkedHashMap<Int, ByteArray>()
+
+        for ((tagName, value) in tags) {
+            val tagId = tagIdMap[tagName] ?: continue
+            val bytes = value.toByteArray(StandardCharsets.US_ASCII) + 0.toByte() // null-terminated
+            when {
+                tagId == 0x9003 -> exifIfdEntries[tagId] = bytes
+                tagId in 0x0001..0x001D -> gpsIfdEntries[tagId] = bytes
+                else -> ifd0Entries[tagId] = bytes
+            }
+        }
+
+        // Pointer entries in IFD0 (filled with real offsets later).
+        val hasExifIfd = exifIfdEntries.isNotEmpty()
+        val hasGpsIfd = gpsIfdEntries.isNotEmpty()
+        if (hasExifIfd) ifd0Entries[0x8769] = ByteArray(4) // ExifIFD pointer
+        if (hasGpsIfd) ifd0Entries[0x8825] = ByteArray(4) // GPSIFD pointer
+
+        // ---- Calculate offsets (relative to TIFF header start) ----
+        val tiffHeaderSize = 8
+        fun ifdBlockSize(entries: Map<Int, ByteArray>): Int = 2 + entries.size * 12 + 4
+
+        val ifd0Start = tiffHeaderSize
+        val exifIfdStart = ifd0Start + ifdBlockSize(ifd0Entries)
+        val gpsIfdStart = exifIfdStart + (if (hasExifIfd) ifdBlockSize(exifIfdEntries) else 0)
+        val dataStart = gpsIfdStart + (if (hasGpsIfd) ifdBlockSize(gpsIfdEntries) else 0)
+
+        // ---- Place string values in data area, track offsets ----
+        var dataPos = dataStart
+        val stringOffsets = LinkedHashMap<Int, Int>() // tagId → absolute TIFF offset
+        val inlineValues = LinkedHashMap<Int, Int>()  // tagId → inline int value
+
+        fun assignValue(tagId: Int, bytes: ByteArray) {
+            if (bytes.size <= 4) {
+                // Store inline (little-endian: first byte at lowest address)
+                var intVal = 0
+                for (i in bytes.indices) {
+                    intVal = intVal or ((bytes[i].toInt() and 0xFF) shl (i * 8))
+                }
+                inlineValues[tagId] = intVal
+            } else {
+                stringOffsets[tagId] = dataPos
+                dataPos += bytes.size
+            }
+        }
+
+        for ((tagId, bytes) in ifd0Entries) {
+            if (tagId == 0x8769 || tagId == 0x8825) continue // pointers handled later
+            assignValue(tagId, bytes)
+        }
+        for ((tagId, bytes) in exifIfdEntries) assignValue(tagId, bytes)
+        for ((tagId, bytes) in gpsIfdEntries) assignValue(tagId, bytes)
+
+        val totalSize = 6 + tiffHeaderSize + ifdBlockSize(ifd0Entries)
+            + (if (hasExifIfd) ifdBlockSize(exifIfdEntries) else 0)
+            + (if (hasGpsIfd) ifdBlockSize(gpsIfdEntries) else 0)
+            + (dataPos - dataStart)
+        val out = ByteArray(totalSize)
+
+        // ---- Write "Exif\0\0" prefix ----
+        out[0] = 'E'.code.toByte()
+        out[1] = 'x'.code.toByte()
+        out[2] = 'i'.code.toByte()
+        out[3] = 'f'.code.toByte()
+        out[4] = 0.toByte()
+        out[5] = 0.toByte()
+
+        // ---- Write TIFF header (little-endian "II") ----
+        out[6] = 'I'.code.toByte()
+        out[7] = 'I'.code.toByte()
+        out[8] = 0x2A.toByte()
+        out[9] = 0x00.toByte()
+        // IFD0 offset = tiffHeaderSize (8)
+        out[10] = 0x08.toByte()
+        out[11] = 0x00.toByte()
+        out[12] = 0x00.toByte()
+        out[13] = 0x00.toByte()
+
+        // ---- Write IFD0 ----
+        var pos = ifd0Start
+        val ifd0EntryCount = ifd0Entries.size
+        out[pos] = (ifd0EntryCount and 0xFF).toByte()
+        out[pos + 1] = (ifd0EntryCount shr 8 and 0xFF).toByte()
+        pos += 2
+
+        val exifIfdAbsOffset = if (hasExifIfd) exifIfdStart else 0
+        val gpsIfdAbsOffset = if (hasGpsIfd) gpsIfdStart else 0
+
+        for ((tagId, bytes) in ifd0Entries) {
+            // Tag (2 bytes, little-endian)
+            out[pos] = (tagId and 0xFF).toByte()
+            out[pos + 1] = (tagId shr 8 and 0xFF).toByte()
+            pos += 2
+
+            if (tagId == 0x8769) {
+                // Type = LONG (4), Count = 1, Value = offset to ExifIFD
+                out[pos] = 0x04.toByte(); out[pos + 1] = 0x00.toByte()
+                out[pos + 2] = 0x01.toByte(); out[pos + 3] = 0x00.toByte()
+                out[pos + 4] = 0x00.toByte(); out[pos + 5] = 0x00.toByte()
+                out[pos + 6] = 0x00.toByte(); out[pos + 7] = 0x00.toByte()
+                out[pos + 8] = (exifIfdAbsOffset and 0xFF).toByte()
+                out[pos + 9] = (exifIfdAbsOffset shr 8 and 0xFF).toByte()
+                out[pos + 10] = (exifIfdAbsOffset shr 16 and 0xFF).toByte()
+                out[pos + 11] = (exifIfdAbsOffset shr 24 and 0xFF).toByte()
+            } else if (tagId == 0x8825) {
+                // Type = LONG (4), Count = 1, Value = offset to GPSIFD
+                out[pos] = 0x04.toByte(); out[pos + 1] = 0x00.toByte()
+                out[pos + 2] = 0x01.toByte(); out[pos + 3] = 0x00.toByte()
+                out[pos + 4] = 0x00.toByte(); out[pos + 5] = 0x00.toByte()
+                out[pos + 6] = 0x00.toByte(); out[pos + 7] = 0x00.toByte()
+                out[pos + 8] = (gpsIfdAbsOffset and 0xFF).toByte()
+                out[pos + 9] = (gpsIfdAbsOffset shr 8 and 0xFF).toByte()
+                out[pos + 10] = (gpsIfdAbsOffset shr 16 and 0xFF).toByte()
+                out[pos + 11] = (gpsIfdAbsOffset shr 24 and 0xFF).toByte()
+            } else {
+                // Type = ASCII (2)
+                out[pos] = 0x02.toByte(); out[pos + 1] = 0x00.toByte()
+                val count = bytes.size
+                out[pos + 2] = (count and 0xFF).toByte()
+                out[pos + 3] = (count shr 8 and 0xFF).toByte()
+                out[pos + 4] = 0x00.toByte(); out[pos + 5] = 0x00.toByte()
+                out[pos + 6] = 0x00.toByte(); out[pos + 7] = 0x00.toByte()
+                if (tagId in inlineValues) {
+                    val intVal = inlineValues[tagId]!!
+                    out[pos + 8] = (intVal and 0xFF).toByte()
+                    out[pos + 9] = (intVal shr 8 and 0xFF).toByte()
+                    out[pos + 10] = (intVal shr 16 and 0xFF).toByte()
+                    out[pos + 11] = (intVal shr 24 and 0xFF).toByte()
+                } else {
+                    val offset = stringOffsets[tagId]!!
+                    out[pos + 8] = (offset and 0xFF).toByte()
+                    out[pos + 9] = (offset shr 8 and 0xFF).toByte()
+                    out[pos + 10] = (offset shr 16 and 0xFF).toByte()
+                    out[pos + 11] = (offset shr 24 and 0xFF).toByte()
+                }
+            }
+            pos += 12
+        }
+
+        // IFD0 next IFD offset = 0 (none)
+        out[pos] = 0.toByte(); out[pos + 1] = 0.toByte()
+        out[pos + 2] = 0.toByte(); out[pos + 3] = 0.toByte()
+        pos += 4
+
+        // ---- Write Exif IFD ----
+        if (hasExifIfd) {
+            out[pos] = (exifIfdEntries.size and 0xFF).toByte()
+            out[pos + 1] = (exifIfdEntries.size shr 8 and 0xFF).toByte()
+            pos += 2
+            for ((tagId, bytes) in exifIfdEntries) {
+                out[pos] = (tagId and 0xFF).toByte()
+                out[pos + 1] = (tagId shr 8 and 0xFF).toByte()
+                pos += 2
+                out[pos] = 0x02.toByte(); out[pos + 1] = 0x00.toByte() // ASCII
+                pos += 2
+                val count = bytes.size
+                out[pos] = (count and 0xFF).toByte()
+                out[pos + 1] = (count shr 8 and 0xFF).toByte()
+                out[pos + 2] = 0x00.toByte(); out[pos + 3] = 0x00.toByte()
+                pos += 4
+                val offset = stringOffsets[tagId]!!
+                out[pos] = (offset and 0xFF).toByte()
+                out[pos + 1] = (offset shr 8 and 0xFF).toByte()
+                out[pos + 2] = (offset shr 16 and 0xFF).toByte()
+                out[pos + 3] = (offset shr 24 and 0xFF).toByte()
+                pos += 4
+            }
+            out[pos] = 0.toByte(); out[pos + 1] = 0.toByte()
+            out[pos + 2] = 0.toByte(); out[pos + 3] = 0.toByte()
+            pos += 4
+        }
+
+        // ---- Write GPS IFD ----
+        if (hasGpsIfd) {
+            out[pos] = (gpsIfdEntries.size and 0xFF).toByte()
+            out[pos + 1] = (gpsIfdEntries.size shr 8 and 0xFF).toByte()
+            pos += 2
+            for ((tagId, bytes) in gpsIfdEntries) {
+                out[pos] = (tagId and 0xFF).toByte()
+                out[pos + 1] = (tagId shr 8 and 0xFF).toByte()
+                pos += 2
+                out[pos] = 0x02.toByte(); out[pos + 1] = 0x00.toByte() // ASCII
+                pos += 2
+                val count = bytes.size
+                out[pos] = (count and 0xFF).toByte()
+                out[pos + 1] = (count shr 8 and 0xFF).toByte()
+                out[pos + 2] = 0x00.toByte(); out[pos + 3] = 0x00.toByte()
+                pos += 4
+                val offset = stringOffsets[tagId]!!
+                out[pos] = (offset and 0xFF).toByte()
+                out[pos + 1] = (offset shr 8 and 0xFF).toByte()
+                out[pos + 2] = (offset shr 16 and 0xFF).toByte()
+                out[pos + 3] = (offset shr 24 and 0xFF).toByte()
+                pos += 4
+            }
+            out[pos] = 0.toByte(); out[pos + 1] = 0.toByte()
+            out[pos + 2] = 0.toByte(); out[pos + 3] = 0.toByte()
+            pos += 4
+        }
+
+        // ---- Write data area (ASCII strings) ----
+        for ((tagId, offset) in stringOffsets) {
+            val bytes = when {
+                tagId in ifd0Entries -> ifd0Entries[tagId]!!
+                tagId in exifIfdEntries -> exifIfdEntries[tagId]!!
+                tagId in gpsIfdEntries -> gpsIfdEntries[tagId]!!
+                else -> continue
+            }
+            System.arraycopy(bytes, 0, out, offset, bytes.size)
+        }
+
+        return out
+    }
+
+    /**
+     * Extracts a raw EXIF block from a JPEG or HEIC source.
+     *
+     * First tries JPEG APP1 segment parsing ([extractJpegExifBlock]). If that
+     * returns null (e.g. HEIC source), falls back to reading individual EXIF
+     * tags via [ExifInterface] and building a block with [exifTagsToBlock].
+     *
+     * The orientation tag is reset to normal because ImageDecoder already
+     * rotated the output pixels during decode.
+     *
+     * Returns null when no EXIF data is available or cannot be built.
+     * Failures are logged and never throw.
+     */
+    fun extractExifBlock(context: Context, uri: Uri): ByteArray? {
+        // Try JPEG first
+        val jpegBlock = extractJpegExifBlock(context, uri)
+        if (jpegBlock != null) {
+            return withNormalOrientation(jpegBlock)
+        }
+
+        // Fall back to HEIC: read individual tags and build a block
+        return try {
+            val tags = readExifFromHeic(context, uri)
+            if (tags.isEmpty()) null
+            else exifTagsToBlock(tags)?.let { withNormalOrientation(it) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract EXIF block from HEIC $uri", e)
+            null
+        }
     }
 
     private fun parseDateTime(raw: String?): Long? {

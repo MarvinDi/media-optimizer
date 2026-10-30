@@ -177,7 +177,7 @@ git config --global https.https://github.com.proxy "http://proxyhk.zte.com.cn:80
 
 | # | 限制 | 说明 | 处理方式 |
 |---|------|------|----------|
-| 1 | HEIF 输出时非 JPEG 源图像 EXIF 将丢失 | `ExifInterface` 无法读取 WebP/HEIC 的原始 EXIF 块，`HeifWriter.addExifData` 需原始 EXIF 块字节数组。仅 JPEG 源可通过 `extractJpegExifBlock` 提取并嵌入。 | V1 文档化限制；V2 可考虑对非 JPEG 源回退 JPEG 或提取单个 EXIF 标签 |
+| 1 | HEIF 输出时非 JPEG 源图像 EXIF 可能丢失 | JPEG 源通过 `extractJpegExifBlock` 提取原始 EXIF 块嵌入 HEIF；HEIC 源通过 `ExifInterface` 读取标签并构建 EXIF 块嵌入。WebP 源因 `ExifInterface` 对 WebP EXIF 支持有限，EXIF 可能丢失。 | HEIC 源已支持 EXIF 保留；WebP 源仍为 V1 文档化限制，V2 可考虑更成熟的元数据库 |
 | 2 | ExifHelper 手动解析 JPEG EXIF 段 | `readExifBlock` 手动扫描 JPEG 标记段，对非标准 JPEG 结构（复杂 APP 段、XMP 等）鲁棒性有限。受限于 AndroidX ExifInterface 不提供获取原始 EXIF 块的 API。 | V1 保留手动解析；V2 可评估更成熟的 JPEG 元数据库 |
 | 3 | release 签名依赖环境变量 | `app/build.gradle.kts` 的 release signingConfigs 全从 `System.getenv` 读取，未设置时 release 构建失败。密钥绝不入库，故无法在 CI 中自动验证 release 构建。 | 维护者本地配置环境变量；CI 仅验证 debug 构建 |
 | 4 | EXIF 开关关闭时无 DATE_TAKEN | `preserveExif` 为 false 时不读取拍摄时间，MediaStore 不设置 `DATE_TAKEN`，输出文件按创建时间而非拍摄时间排序。这是用户主动选择关闭 EXIF 保留的预期行为。 | V1 文档化；V2 可考虑即使 EXIF 关闭也读取拍摄时间用于 MediaStore |
