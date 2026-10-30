@@ -1,0 +1,13 @@
+# 提交信息模板
+
+遵循 `type(scope): subject` 格式，信息带 Why。
+
+示例：
+  feat(repo): add detekt config
+  fix(ui): correct theme fallback
+  docs: update AGENTS.md
+
+规则：
+- 原子提交：一次只修一个问题
+- 不提交任何密钥/secrets
+- 不修改 HANDOFF.md（保持未跟踪）
