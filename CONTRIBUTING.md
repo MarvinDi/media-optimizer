@@ -20,7 +20,7 @@ Media Optimizer 解决手机里图片格式混杂、占用空间大的问题。�
 |------|------|
 | `./gradlew assembleDebug` | 构建 Debug APK |
 | `./gradlew detekt` | 运行 detekt 静态检查 |
-| `./gradlew ktlint` | 运行 ktlint 代码风格检查 |
+| `./gradlew ktlintCheck` | 运行 ktlint 代码风格检查 |
 | `./gradlew testDebugUnitTest` | 运行单元测试 |
 | `./gradlew lintDebug` | 运行 Android Lint |
 
@@ -51,7 +51,7 @@ Media Optimizer 解决手机里图片格式混杂、占用空间大的问题。�
 ## 提交 PR 流程
 
 1. Fork 仓库并创建特性分支
-2. 在分支上进行开发，确保 `./gradlew detekt`、`./gradlew ktlint`、`./gradlew assembleDebug` 均通过
+2. 在分支上进行开发，确保 `./gradlew detekt`、`./gradlew ktlintCheck`、`./gradlew assembleDebug` 均通过
 3. 提交变更（遵循提交规范）
 4. 发起 Pull Request，填写 PR 模板
 5. 等待维护者审查与合并
