@@ -30,3 +30,10 @@ Thumbs.db
 
 # Kotlin
 .kotlintest
+
+# Detekt output
+detekt-*.xml
+.detekt/
+
+# ktlint output
+.ktlint/
