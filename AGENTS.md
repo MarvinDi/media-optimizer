@@ -117,6 +117,39 @@ MainActivity (入口，Compose 设置)
 - APK 产物：GitHub Actions Artifacts `app-debug-apk`（约 7.9 MB）
 - CI 红了：查看 Actions 日志 → 修复 → 新提交（不改写历史）
 
+### 7.5 CI 构建监控与主动排查（提交后必做）
+
+每次 `git push origin/main` 之后，必须主动检查 GitHub Actions 构建结果，不得假设构建通过。
+
+**监控命令（在本地终端执行，需配置 HTTP 代理 `http://proxyhk.zte.com.cn:80`）：**
+
+```powershell
+# 1. 查看最新构建状态
+gh run list --repo MarvinDi/media-optimizer --limit 1 --json databaseId,status,conclusion,headSha
+
+# 2. 查看具体 run 的 job 状态（把 <run_id> 换成实际的 databaseId）
+gh api repos/MarvinDi/media-optimizer/actions/runs/<run_id>/jobs --jq '.jobs[] | {name: .name, conclusion: .conclusion, id: .id}'
+
+# 3. 查看失败 job 的日志（把 <job_id> 换成失败的 job id）
+gh api repos/MarvinDi/media-optimizer/actions/jobs/<job_id>/logs --allow-escape-sequences
+```
+
+**排查流程：**
+1. 若所有 job 状态为 `success`，构建通过，可继续后续工作。
+2. 若有 job 状态为 `failure`，先查看 `build` job 日志（最基础，通常影响后续 job）。
+3. 根据错误信息定位问题，在本地修复后提交新 commit（不改写历史）。
+4. 再次 push 并重复第 1 步，直至所有 job 通过。
+
+**代理配置（沙箱环境）：**
+```powershell
+$env:HTTP_PROXY="http://proxyhk.zte.com.cn:80"
+$env:HTTPS_PROXY="http://proxyhk.zte.com.cn:80"
+git config --global http.https://github.com.proxy "http://proxyhk.zte.com.cn:80"
+git config --global https.https://github.com.proxy "http://proxyhk.zte.com.cn:80"
+```
+
+> ⚠️ 代理信息仅供本地使用，严禁写入代码仓库或提交到 GitHub。
+
 ---
 
 ## 8. 发布流程
